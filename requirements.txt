@@ -1,0 +1,41 @@
+# 应声.skills 依赖
+# 安装命令: pip install -r requirements.txt
+
+# ========== TTS 引擎 ==========
+# Edge TTS - 默认引擎，质量最好
+edge-tts>=7.0.0
+
+# gTTS - Google TTS 备选引擎（国内需代理）
+gTTS>=2.5.0
+
+# pyttsx3 - 本地离线引擎（服务器环境可能不支持）
+pyttsx3>=2.90
+
+# ========== Web 框架 ==========
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+
+# ========== 数据验证 ==========
+pydantic>=2.0.0
+
+# ========== 音频处理 ==========
+pydub>=0.25.0
+
+# ========== HTTP 请求 ==========
+requests>=2.31.0
+urllib3>=2.0.0
+
+# ========== 环境变量管理 ==========
+python-dotenv>=1.0.0
+
+# ========== 系统依赖（需单独安装）==========
+# ffmpeg - 必需，用于音频格式转换
+#   Ubuntu/Debian: sudo apt-get install ffmpeg
+#   CentOS/RHEL:   sudo yum install ffmpeg
+#   macOS:         brew install ffmpeg
+#   Windows:       winget install Gyan.FFmpeg
+#
+# 如需发送企业微信语音，ffmpeg 需支持 AMR 编码：
+#   检查: ffmpeg -encoders | grep amr
+#   如无输出，下载静态版本：
+#   wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz

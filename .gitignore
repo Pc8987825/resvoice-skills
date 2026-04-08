@@ -1,0 +1,41 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# 虚拟环境
+venv/
+env/
+.venv/
+ENV/
+
+# 配置、密钥、敏感信息
+.env
+.env.*
+config.json
+secrets.json
+secrets.yaml
+*.key
+*.pem
+password.txt
+
+# 测试数据、日志、临时文件
+test/
+tests/
+test_data/
+*.log
+temp/
+tmp/
+*.tmp
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
