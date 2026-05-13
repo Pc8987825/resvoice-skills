@@ -2,7 +2,7 @@
 
 ## 一句话描述
 
-**当用户需要语音回复时，调用本 Skill 生成语音。**
+**当用户需要语音回复时，调用本 Skill 生成语音并自动发送到微信。**
 
 ---
 
@@ -15,28 +15,79 @@
 
 ---
 
-## 核心接口
+## 核心接口（OpenClaw 自动适配）
 
 ```python
 from skills.ResVoice import send_voice_message
 
-# 生成语音
-result = await send_voice_message("你好")
+# 最简单的方式：自动检测 OpenClaw 环境
+result = await send_voice_message("你好，世界！")
 
+# OpenClaw 会自动：
+# 1. 检测当前是微信个人号还是企业微信
+# 2. 生成语音文件
+# 3. 自动发送到当前聊天窗口
+```
+
+### 返回值
+
+```python
+{
+    "success": True,
+    "filepath": "/path/to/audio.mp3",
+    "platform": "openclaw_weixin",  # 自动检测的平台
+    "is_real_voice": False,          # 个人微信为 MP3 文件
+    "sent": True                     # 是否成功发送
+}
+```
+
+---
+
+## OpenClaw 环境自动检测
+
+本 Skill 会自动读取 OpenClaw 注入的元数据：
+
+```json
+{
+  "channel": "openclaw-weixin",      // 微信个人号
+  "chat_id": "xxx@im.wechat",        // 用户ID
+  "account_id": "xxx-im-bot"         // 机器人账号
+}
+```
+
+**自动适配逻辑：**
+
+| 渠道 | 检测标识 | 发送方式 |
+|------|----------|----------|
+| 微信个人号 | `channel: "openclaw-weixin"` | MP3 文件 |
+| 企业微信 | `channel: "wechat-work"` | AMR 语音 |
+
+**Agent 无需手动配置，一行代码搞定：**
+
+```python
+# 自动检测平台，自动发送
+result = await send_voice_message("你好")
+```
+
+---
+
+## 手动指定平台（可选）
+
+如果需要手动控制：
+
+```python
 # 发送到企业微信
 result = await send_voice_message(
     text="你好",
-    to_user="UserID",
     platform="wechat_work",
     corp_id="...",
     agent_id=...,
     secret="..."
 )
 
-# 发送到个人微信（MP3文件）
+# 发送到个人微信（手动指定）
 result = await send_voice_message(
     text="你好",
-    to_user="好友",
     platform="personal_wechat",
     send_func=your_func
 )
@@ -44,38 +95,14 @@ result = await send_voice_message(
 
 ---
 
-## 返回值
-
-```python
-{
-    "success": True,
-    "filepath": "/path/to/audio.mp3",
-    "platform": "wechat_work",      # wechat_work / personal_wechat
-    "is_real_voice": True,          # True=AMR语音, False=MP3文件
-    "format": "amr",                # amr / mp3
-    "sent": True                    # 是否成功发送
-}
-
-# 错误时
-{
-    "success": False,
-    "error_type": "MISSING_DEPENDENCY",  # 错误类型
-    "message": "缺少依赖",
-    "fix_command": "pip install ...",     # 修复命令
-    "auto_fixable": True                  # 能否自动修复
-}
-```
-
----
-
-## 环境检查（可选）
+## 环境检查
 
 ```python
 from skills.ResVoice import check_setup, auto_setup
 
-# 检查
+# 检查环境
 status = check_setup()
-if not status["ready"] and status["auto_fixable"]:
+if not status["ready"]:
     auto_setup()  # 自动修复
 ```
 
@@ -85,21 +112,25 @@ if not status["ready"] and status["auto_fixable"]:
 
 ```yaml
 skill: ResVoice
-version: 0.2.0-beta
+version: 0.3.0-beta
 
 capabilities:
   tts:
     provider: edge_tts
-    engines: [edge, gtts, pyttsx3]  # 自动回退
-    voices:
-      - zh-CN-XiaoxiaoNeural  # 女声（默认）
-      - zh-CN-YunxiNeural     # 男声
+    engines: [edge, gtts, pyttsx3]
+    voices: [zh-CN-XiaoxiaoNeural, zh-CN-YunxiNeural, ...]
     offline_fallback: true
     
   voice_send:
     platforms:
-      - wechat_work     # 真正语音（AMR）
-      - personal_wechat # MP3文件
+      - openclaw_weixin    # 个人微信（自动检测）
+      - wechat_work        # 企业微信
+    formats: [mp3, amr]
+    
+  openclaw_integration:
+    auto_detect: true                    # 自动检测环境
+    meta_source: OPENCLAW_META           # 读取元数据
+    send_method: message(action="send")  # 使用 OpenClaw 工具
 ```
 
 ---
@@ -115,9 +146,14 @@ capabilities:
 
 ## 更新日志
 
+### 0.3.0-beta
+- **新增**: OpenClaw 自动适配，无需手动配置
+- **新增**: 自动检测微信个人号/企业微信
+- **优化**: `send_voice_message()` 支持 platform=None 自动检测
+
 ### 0.2.0-beta
-- 重构：专注 Agent 调用，删除 CLI
-- 保留：自动依赖安装、结构化错误、多引擎回退
+- 重构：专注 Agent 调用
+- 新增：环境检测与自动修复
 
 ### 0.1.0-beta
 - 初始版本
