@@ -51,43 +51,50 @@ def detect_openclaw_meta() -> Optional[Dict]:
     return None
 
 
-def create_openclaw_sender(meta: Dict) -> Callable[[str, str], bool]:
+def create_openclaw_sender(meta: Dict) -> Callable[[str, str], dict]:
     """
     创建 OpenClaw 发送函数
     
+    ⚠️ 重要：不要传 channel 参数！
+    OpenClaw 会自动从当前会话上下文获取 channel，
+    显式传入反而会覆盖导致失败。
+    
     Args:
-        meta: OpenClaw 元数据
+        meta: OpenClaw 元数据（仅用于获取 user_id）
     
     Returns:
-        发送函数：send_func(filepath, user_id) -> bool
+        发送函数：send_func(user_id, filepath) -> dict
     """
     chat_id = meta.get("chat_id", "")
-    channel = meta.get("channel", "")
     
-    def send_file(filepath: str, user_id: str = None) -> bool:
+    def send_func(user_id: str, filepath: str) -> dict:
         """
         发送文件到微信
         
         使用 OpenClaw 的 message 工具
+        
+        Args:
+            user_id: 目标用户ID
+            filepath: 文件路径
+        
+        Returns:
+            {"success": True/False, "result": ...}
         """
         try:
             # 尝试导入 OpenClaw 的工具
-            # 方式 1：直接调用 OpenClaw 的 message 函数
             try:
                 from openclaw.tools import message
                 
+                # ✅ 正确：不加 channel！OpenClaw 会自动使用当前会话的 channel
                 result = message(
                     action="send",
-                    media=filepath,
-                    # 可选参数
-                    channel=channel,
-                    target=user_id or chat_id
+                    media=filepath
                 )
                 
-                # 检查结果
-                if isinstance(result, dict):
-                    return result.get("status") == "sent" or result.get("success", False)
-                return True
+                return {
+                    "success": True,
+                    "result": result
+                }
                 
             except ImportError:
                 pass
@@ -100,26 +107,36 @@ def create_openclaw_sender(meta: Dict) -> Callable[[str, str], bool]:
                 "tool": "message",
                 "params": {
                     "action": "send",
-                    "media": filepath,
-                    "channel": channel,
-                    "target": user_id or chat_id
+                    "media": filepath
+                    # 不加 channel！
                 }
             }
             
-            result = subprocess.run(
+            process_result = subprocess.run(
                 ["openclaw", "tool", "invoke"],
                 input=json.dumps(cmd),
                 capture_output=True,
                 text=True
             )
             
-            return result.returncode == 0
+            if process_result.returncode == 0:
+                return {
+                    "success": True,
+                    "result": process_result.stdout
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": process_result.stderr
+                }
             
         except Exception as e:
-            print(f"OpenClaw 发送失败: {e}")
-            return False
+            return {
+                "success": False,
+                "error": str(e)
+            }
     
-    return send_file
+    return send_func
 
 
 def detect_platform() -> PlatformInfo:

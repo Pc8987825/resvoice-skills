@@ -71,6 +71,22 @@ result = await send_voice_message("你好")
 
 ---
 
+## ⚠️ 重要：不要传 channel 参数
+
+```python
+# ❌ 错误：加了 channel 会失败
+message(action="send", media="/path/to/file.mp3", channel="openclaw-weixin")
+# 结果: "Unknown channel" 或 "Channel is required"
+
+# ✅ 正确：不加 channel，让 OpenClaw 自动使用当前会话的 channel
+message(action="send", media="/path/to/file.mp3")
+# 结果: 成功发送！
+```
+
+**原因**：OpenClaw 会自动从当前会话上下文获取 channel，显式传入反而会覆盖导致失败。
+
+---
+
 ## 手动指定平台（可选）
 
 如果需要手动控制：
