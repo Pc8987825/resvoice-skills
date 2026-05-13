@@ -25,7 +25,7 @@ result = await send_voice_message("你好，世界！")
 
 # OpenClaw 会自动：
 # 1. 检测当前是微信个人号还是企业微信
-# 2. 生成语音文件
+# 2. 生成语音文件（等待完成）
 # 3. 自动发送到当前聊天窗口
 ```
 
@@ -40,6 +40,39 @@ result = await send_voice_message("你好，世界！")
     "sent": True                     # 是否成功发送
 }
 ```
+
+### ⏳ 异步处理说明
+
+**语音生成是异步操作，需要等待完成：**
+
+```python
+# ✅ 正确：使用 await 等待语音生成完成
+result = await send_voice_message("你好")
+
+# 检查生成状态
+if result["success"] and result["sent"]:
+    # 语音已生成并发送成功
+    print(f"文件路径: {result['filepath']}")
+else:
+    # 生成或发送失败
+    print(f"错误: {result.get('message', '未知错误')}")
+```
+
+**OpenClaw 调用流程：**
+
+```
+1. 调用 send_voice_message(text) 
+   ↓
+2. 等待语音生成完成（Edge TTS 异步合成）
+   ↓
+3. 文件生成成功，获取路径 /tmp/tts_xxx.mp3
+   ↓
+4. 调用 message(action="send", media="/tmp/tts_xxx.mp3")
+   ↓
+5. 发送完成
+```
+
+**注意**：语音生成通常需要 1-3 秒，取决于文本长度。请使用 `await` 等待完成，不要立即返回。
 
 ---
 
