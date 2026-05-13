@@ -71,19 +71,57 @@ result = await send_voice_message("你好")
 
 ---
 
-## ⚠️ 重要：不要传 channel 参数
+## ⚠️ 重要：调用规范
+
+### 正确的调用方式
+
+**必须只传这两个参数，不要加其他参数！**
 
 ```python
-# ❌ 错误：加了 channel 会失败
-message(action="send", media="/path/to/file.mp3", channel="openclaw-weixin")
-# 结果: "Unknown channel" 或 "Channel is required"
+message(
+    action="send",
+    media="/tmp/ttsedge202605131614288de9a73b.mp3"
+)
+```
 
-# ✅ 正确：不加 channel，让 OpenClaw 自动使用当前会话的 channel
-message(action="send", media="/path/to/file.mp3")
+### ❌ 错误的调用方式
+
+```python
+# 错误：加了 channel 会失败
+message(action="send", media="...", channel="openclaw-weixin")
+
+# 错误：加了 target 会失败
+message(action="send", media="...", target="xxx")
+
+# 错误：加了 message 参数
+message(action="send", media="...", message="语音消息")
+
+# 错误：加了任何其他参数
+message(action="send", media="...", extra_param="xxx")
+```
+
+### ✅ 正确的调用方式
+
+```python
+# ✅ 正确：只传 action 和 media
+message(action="send", media="/tmp/ttsedge202605131614288de9a73b.mp3")
+
 # 结果: 成功发送！
 ```
 
-**原因**：OpenClaw 会自动从当前会话上下文获取 channel，显式传入反而会覆盖导致失败。
+**原因**：
+1. OpenClaw 会自动从当前会话上下文获取 channel，显式传入反而会覆盖导致失败
+2. 个人微信不支持真正的语音消息，只能发送 MP3 文件
+3. 不要添加任何额外参数，包括 message、target、channel 等
+
+**实际调用示例**：
+```python
+# Skill 生成的文件路径
+filepath = "/tmp/ttsedge202605131614288de9a73b.mp3"
+
+# 直接发送，不要加其他参数
+message(action="send", media=filepath)
+```
 
 ---
 
