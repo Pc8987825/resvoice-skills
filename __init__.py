@@ -7,11 +7,11 @@ ResVoice (回应之声) - AI 语音合成与发送 Skill
     from skills.ResVoice import send_voice_message
     result = await send_voice_message("你好梦哥")
 
-版本: 0.1.5-beta
+版本: 0.2.0-beta
 作者: 远梦
 """
 
-__version__ = "0.1.5-beta"
+__version__ = "0.2.0-beta"
 __author__ = "远梦"
 __skill_name__ = "ResVoice"
 
@@ -30,15 +30,41 @@ OPENCLAW_CAPABILITIES = {
         "offline_fallback": True
     },
     "voice_sender": {
-        "channels": ["wechat_work"],
-        "formats": ["mp3", "amr"]
+        "channels": ["wechat_work", "personal_wechat"],
+        "formats": ["mp3", "amr"],
+        "note": "personal_wechat 以 MP3 文件形式发送"
     }
 }
 
+# 环境检测（在导入其他模块前进行）
+import sys
+
+# 尝试自动安装依赖，避免暴露裸错误
+try:
+    from .src.environment import ensure_dependencies, SkillError
+    _env_error = ensure_dependencies()
+    if _env_error:
+        ENVIRONMENT_ERROR = _env_error.to_dict()
+    else:
+        ENVIRONMENT_ERROR = None
+except Exception as e:
+    ENVIRONMENT_ERROR = {
+        "success": False,
+        "error_type": "INIT_ERROR",
+        "message": f"环境检测失败: {e}",
+        "fix_command": f"{sys.executable} -m pip install -r requirements.txt",
+        "auto_fixable": True
+    }
+
 # 从 src 导入核心功能
-from .src.tts import TTSService, TTSEngine, text_to_speech_sync, text_to_speech_simple
-from .src.audio import AudioConverter
-from .src.wechat import WeChatWorkAPI, WeChatWorkConfig, WeChatWorkVoiceSender
+from .src.tts import TTSService, TTSEngine
+from .src.senders import (
+    WeChatWorkSender,
+    PersonalWeChatSender,
+    create_sender,
+    SenderType,
+)
+from .src.environment import check_environment
 
 
 async def send_voice_message(
@@ -46,62 +72,100 @@ async def send_voice_message(
     to_user: str = None,
     voice: str = "zh-CN-XiaoxiaoNeural",
     engine=None,
-    send_to_wechat: bool = False,
+    platform: str = "wechat_work",
     corp_id: str = None,
     agent_id: int = None,
     secret: str = None,
+    send_func=None,
+    **kwargs
 ) -> dict:
     """
-    生成语音并发送（OpenClaw 专用便捷函数）
+    生成语音并发送（Agent 专用便捷函数）
     
     Args:
         text: 要转换的文字
-        to_user: 企业微信用户ID
+        to_user: 目标用户ID
         voice: 音色，默认晓晓女声
         engine: TTS 引擎
-        send_to_wechat: 是否发送到企业微信
+        platform: wechat_work 或 personal_wechat
         corp_id, agent_id, secret: 企业微信配置
+        send_func: 个人微信的发送函数
     
     Returns:
-        {"success": True, "filepath": "...", "engine": "edge", "sent": bool}
+        {"success": True, "filepath": "...", "is_real_voice": True/False, "sent": True/False}
+        或错误时: {"success": False, "error_type": "...", "message": "...", "fix_command": "...", "auto_fixable": True/False}
     """
-    tts = TTSService()
-    tts_result = await tts.text_to_speech(text=text, voice=voice, engine=engine)
+    if ENVIRONMENT_ERROR:
+        return ENVIRONMENT_ERROR
     
-    result = {
-        "success": True,
-        "filepath": tts_result["filepath"],
-        "engine": tts_result["engine"],
-        "voice": tts_result.get("voice", voice),
-        "sent": False
-    }
-    
-    if send_to_wechat and to_user:
-        if not all([corp_id, agent_id, secret]):
-            raise ValueError("发送到企业微信需要提供 corp_id, agent_id, secret")
+    try:
+        if platform == "wechat_work":
+            if not all([corp_id, agent_id, secret]):
+                return {
+                    "success": False,
+                    "error_type": "MISSING_CONFIG",
+                    "message": "企业微信需要提供 corp_id, agent_id, secret",
+                    "auto_fixable": False
+                }
+            
+            sender = create_sender(
+                SenderType.WECHAT_WORK,
+                corp_id=corp_id,
+                agent_id=agent_id,
+                secret=secret
+            )
         
-        sender = WeChatWorkVoiceSender(corp_id, agent_id, secret, allow_fallback=True)
-        send_result = await sender.text_to_voice_and_send(text, to_user, voice)
-        result["sent"] = True
-        result["send_result"] = send_result
+        elif platform == "personal_wechat":
+            sender = create_sender(
+                SenderType.PERSONAL_WECHAT,
+                send_func=send_func
+            )
+        
+        else:
+            return {
+                "success": False,
+                "error_type": "INVALID_PLATFORM",
+                "message": f"不支持的平台: {platform}",
+                "auto_fixable": False
+            }
+        
+        result = await sender.send_voice(text=text, user_id=to_user, voice=voice)
+        return result.to_dict()
     
-    return result
+    except Exception as e:
+        return {
+            "success": False,
+            "error_type": "RUNTIME_ERROR",
+            "message": str(e),
+            "auto_fixable": False
+        }
 
 
-def send_voice_message_sync(text: str, **kwargs) -> dict:
-    """send_voice_message 的同步版本"""
-    import asyncio
-    return asyncio.run(send_voice_message(text, **kwargs))
+def check_setup() -> dict:
+    """检查环境是否就绪"""
+    return check_environment(auto_install=False)
+
+
+def auto_setup() -> dict:
+    """自动安装缺失的依赖"""
+    return check_environment(auto_install=True)
 
 
 __all__ = [
-    # 核心类
-    "TTSService", "TTSEngine",
-    "AudioConverter",
-    "WeChatWorkAPI", "WeChatWorkConfig", "WeChatWorkVoiceSender",
-    # 便捷函数
-    "send_voice_message", "send_voice_message_sync",
-    "text_to_speech_sync", "text_to_speech_simple",
+    # 核心接口
+    "send_voice_message",
+    # 环境检测
+    "check_setup",
+    "auto_setup",
+    "check_environment",
+    # 高级类（可选）
+    "TTSService",
+    "WeChatWorkSender",
+    "PersonalWeChatSender",
+    "create_sender",
+    "SenderType",
+    # 全局状态
+    "ENVIRONMENT_ERROR",
     # 能力声明
     "OPENCLAW_CAPABILITIES",
 ]
